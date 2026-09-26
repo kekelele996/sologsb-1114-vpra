@@ -5,7 +5,7 @@ import type { Cave, Segment, Sketch, Station } from '@/types'
 import { computeHorizontal, computeVertical } from '@/utils/survey'
 
 /** IndexedDB 数据结构版本号（升级迁移时使用） */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export interface MetaRow {
   key: string
@@ -30,7 +30,7 @@ class CaveSurveyDb extends Dexie {
       meta: 'key'
     })
     // v2：旧版测点记录缺少水平距/垂距，迁移时由斜距 + 倾角补齐
-    this.version(SCHEMA_VERSION)
+    this.version(2)
       .stores({
         caves: 'id, name, region, archived',
         segments: 'id, caveId, code, type',
@@ -49,6 +49,26 @@ class CaveSurveyDb extends Dexie {
             if (!Number.isFinite(station.verticalDistance)) {
               station.verticalDistance = computeVertical(station.dip, station.slopeDistance)
             }
+          })
+      })
+    // v3：测点读数版本化（闭合洞段复测留存历史），旧记录落为第 1 版当前版本
+    this.version(SCHEMA_VERSION)
+      .stores({
+        caves: 'id, name, region, archived',
+        segments: 'id, caveId, code, type',
+        stations: 'id, segmentId, code, date',
+        sketches: 'id, segmentId, code, mergeOrder',
+        meta: 'key'
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table<Station, string>('stations')
+          .toCollection()
+          .modify((station) => {
+            if (!station.groupId) station.groupId = station.id
+            if (!Number.isFinite(station.version)) station.version = 1
+            if (station.status !== 'superseded' && station.status !== 'rejected') station.status = 'current'
+            if (typeof station.remeasureReason !== 'string') station.remeasureReason = ''
           })
       })
   }
@@ -158,6 +178,10 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'st_demo_001',
       segmentId: segmentA,
+      groupId: 'st_demo_001',
+      version: 1,
+      status: 'current',
+      remeasureReason: '',
       code: 'P1',
       bearing: 118.5,
       dip: -2.5,
@@ -173,6 +197,10 @@ export async function seedDemoData(): Promise<void> {
     {
       id: 'st_demo_002',
       segmentId: segmentA,
+      groupId: 'st_demo_002',
+      version: 1,
+      status: 'current',
+      remeasureReason: '',
       code: 'P2',
       bearing: 121.2,
       dip: -1.8,
@@ -184,6 +212,83 @@ export async function seedDemoData(): Promise<void> {
       date: today,
       isClosurePoint: true,
       note: '本段末站，已与 C-02 起点核对'
+    },
+    // C-02 为已闭合洞段：P1 复测后第 2 版生效、第 1 版归档；P2 有一次异常复测被标记为未生效
+    {
+      id: 'st_demo_101',
+      segmentId: segmentB,
+      groupId: 'st_demo_101',
+      version: 1,
+      status: 'superseded',
+      remeasureReason: '',
+      code: 'P1',
+      bearing: 266.8,
+      dip: -64.5,
+      slopeDistance: 9.6,
+      horizontalDistance: computeHorizontal(-64.5, 9.6),
+      verticalDistance: computeVertical(-64.5, 9.6),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: false,
+      note: '竖井初测，井口有渗水'
+    },
+    {
+      id: 'st_demo_102',
+      segmentId: segmentB,
+      groupId: 'st_demo_101',
+      version: 2,
+      status: 'current',
+      remeasureReason: '闭合差超限，复测方位角与斜距',
+      code: 'P1',
+      bearing: 271.4,
+      dip: -65.2,
+      slopeDistance: 9.4,
+      horizontalDistance: computeHorizontal(-65.2, 9.4),
+      verticalDistance: computeVertical(-65.2, 9.4),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: false,
+      note: '复测后读数，替代初测值'
+    },
+    {
+      id: 'st_demo_103',
+      segmentId: segmentB,
+      groupId: 'st_demo_103',
+      version: 1,
+      status: 'current',
+      remeasureReason: '',
+      code: 'P2',
+      bearing: 274.0,
+      dip: -70.1,
+      slopeDistance: 11.2,
+      horizontalDistance: computeHorizontal(-70.1, 11.2),
+      verticalDistance: computeVertical(-70.1, 11.2),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: true,
+      note: '井底闭合点'
+    },
+    {
+      id: 'st_demo_104',
+      segmentId: segmentB,
+      groupId: 'st_demo_103',
+      version: 2,
+      status: 'rejected',
+      remeasureReason: '棱镜被渗水遮挡后补测',
+      code: 'P2',
+      bearing: 361.5,
+      dip: -70.4,
+      slopeDistance: 11.1,
+      horizontalDistance: computeHorizontal(-70.4, 11.1),
+      verticalDistance: computeVertical(-70.4, 11.1),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: true,
+      note: '方位角超范围，本次复测未生效'
     }
   ])
 

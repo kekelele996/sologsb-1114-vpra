@@ -70,6 +70,16 @@ export function isValidDip(deg: number): boolean {
   return Number.isFinite(deg) && deg >= -90 && deg <= 90
 }
 
+/** 异常读数：方位角或倾角超范围、斜距非正、水平距大于斜距 */
+export function isAbnormalStation(
+  station: Pick<Station, 'bearing' | 'dip' | 'slopeDistance' | 'horizontalDistance'>
+): boolean {
+  if (!isValidBearing(station.bearing)) return true
+  if (!isValidDip(station.dip)) return true
+  if (!(station.slopeDistance > 0)) return true
+  return station.horizontalDistance > Math.abs(station.slopeDistance) + 0.001
+}
+
 /** 由斜距与倾角推算水平距 */
 export function computeHorizontal(dip: number, slope: number): number {
   return round(Math.abs(slope) * Math.cos(toRadians(dip)), 3)

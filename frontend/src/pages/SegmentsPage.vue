@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Segment, SegmentType } from '@/types'
-import { SEGMENT_TYPES, segmentLength } from '@/types'
+import { SEGMENT_TYPES, isCurrentStation, segmentLength } from '@/types'
 import SegmentTag from '@/components/common/SegmentTag.vue'
 import { useStore } from '@/hooks/usePersistentStore'
 import { caveStore } from '@/stores/caveStore'
@@ -59,8 +59,9 @@ function caveName(caveId: string): string {
   return caveState.caves.find((cave) => cave.id === caveId)?.name ?? '未归属洞穴'
 }
 
+/** 测点数只统计当前版本（历史/未生效版本不算作独立测点） */
 function stationCount(segmentId: string): number {
-  return stationState.stations.filter((station) => station.segmentId === segmentId).length
+  return stationState.stations.filter((station) => station.segmentId === segmentId && isCurrentStation(station)).length
 }
 
 function resetForm(): void {
@@ -148,9 +149,10 @@ async function applyBatchClosed(closed: boolean): Promise<void> {
 }
 
 async function removeSegment(segment: Segment): Promise<void> {
-  const count = stationCount(segment.id)
+  // 删除前校验所有版本记录（含历史/未生效），避免遗留孤儿版本
+  const count = stationState.stations.filter((station) => station.segmentId === segment.id).length
   if (count > 0) {
-    ElMessage.error(`洞段「${segment.code}」下仍有 ${count} 个测点，请先清理`)
+    ElMessage.error(`洞段「${segment.code}」下仍有 ${count} 条测点记录，请先清理`)
     return
   }
   await ElMessageBox.confirm(`确认删除洞段「${segment.code}」？`, '删除确认', { type: 'warning' })

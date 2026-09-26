@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Sketch } from '@/types'
+import { isCurrentStation } from '@/types'
 import ClosureBadge from '@/components/common/ClosureBadge.vue'
 import GridCanvas from '@/components/common/GridCanvas.vue'
 import SegmentTag from '@/components/common/SegmentTag.vue'
@@ -78,10 +79,10 @@ watch(
   { immediate: true }
 )
 
-/** 洞段测点闭合差（拼合视图复用闭合差徽标） */
+/** 洞段测点闭合差（拼合视图复用闭合差徽标，只统计当前版本读数） */
 const caveStations = computed(() =>
-  stationState.stations.filter((station) =>
-    caveSegments.value.some((segment) => segment.id === station.segmentId)
+  stationState.stations.filter(
+    (station) => caveSegments.value.some((segment) => segment.id === station.segmentId) && isCurrentStation(station)
   )
 )
 const { result: closureResult } = useClosureCheck(caveStations)
