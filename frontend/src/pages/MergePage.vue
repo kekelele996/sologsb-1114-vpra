@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { Sketch } from '@/types'
+import { currentStations, isCurrentVersion } from '@/types'
 import ClosureBadge from '@/components/common/ClosureBadge.vue'
 import GridCanvas from '@/components/common/GridCanvas.vue'
 import SegmentTag from '@/components/common/SegmentTag.vue'
@@ -78,13 +79,21 @@ watch(
   { immediate: true }
 )
 
-/** 洞段测点闭合差（拼合视图复用闭合差徽标） */
+/** 洞段测点闭合差（拼合视图复用闭合差徽标，只按当前生效版本计算） */
 const caveStations = computed(() =>
-  stationState.stations.filter((station) =>
+  currentStations(stationState.stations).filter((station) =>
     caveSegments.value.some((segment) => segment.id === station.segmentId)
   )
 )
 const { result: closureResult } = useClosureCheck(caveStations)
+
+/** 图幅所属洞段的测点版本概况：锚点吸附与闭合差均以当前版本为准 */
+function stationVersionInfo(sketch: Sketch): string {
+  const all = stationState.stations.filter((station) => station.segmentId === sketch.segmentId)
+  const current = all.filter(isCurrentVersion).length
+  const history = all.length - current
+  return history > 0 ? `${current} 站 · ${history} 条历史` : `${current} 站`
+}
 
 /** 按桩号锚点自动吸附：以最小锚点桩号为原点，按桩号差换算横向偏移 */
 function autoAlign(): void {
@@ -149,6 +158,7 @@ interface MergeRow {
   anchorStake: string
   offset: number
   snapped: boolean
+  stationInfo: string
 }
 
 const mergeRows = computed<MergeRow[]>(() =>
@@ -158,7 +168,8 @@ const mergeRows = computed<MergeRow[]>(() =>
     segment: segmentOf(sketch),
     anchorStake: sketch.anchorStake,
     offset: offsets[sketch.id] ?? 0,
-    snapped: snapped[sketch.id] ?? false
+    snapped: snapped[sketch.id] ?? false,
+    stationInfo: stationVersionInfo(sketch)
   }))
 )
 
@@ -181,6 +192,7 @@ function exportMergeTable(): void {
       { key: 'code', label: '草图编号' },
       { key: 'segment', label: '洞段' },
       { key: 'anchorStake', label: '锚点桩号' },
+      { key: 'stationInfo', label: '测点数据（当前版本）' },
       { key: 'offset', label: '对齐偏移(px)' },
       { key: 'snapped', label: '是否吸附' }
     ]
@@ -307,6 +319,7 @@ function exportMergeTable(): void {
       <el-table-column prop="code" label="草图编号" width="120" />
       <el-table-column prop="segment" label="洞段" width="120" />
       <el-table-column prop="anchorStake" label="桩号对齐锚点" width="150" />
+      <el-table-column prop="stationInfo" label="测点数据（当前版本）" width="170" />
       <el-table-column label="对齐偏移" width="120">
         <template #default="{ row }: { row: MergeRow }">{{ row.offset }} px</template>
       </el-table-column>

@@ -144,7 +144,9 @@ async function applyBatchClosed(closed: boolean): Promise<void> {
     return
   }
   await segmentStore.getState().bulkSetClosed(selectedIds.value, closed)
-  ElMessage.success(closed ? '已标记为闭合' : '已取消闭合标记')
+  ElMessage.success(
+    closed ? '已标记为闭合：测点原始读数已锁定，后续修改需在「测点读数」页走复测流程' : '已取消闭合标记'
+  )
 }
 
 async function removeSegment(segment: Segment): Promise<void> {

@@ -5,7 +5,7 @@ import type { Cave, Segment, Sketch, Station } from '@/types'
 import { computeHorizontal, computeVertical } from '@/utils/survey'
 
 /** IndexedDB 数据结构版本号（升级迁移时使用） */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export interface MetaRow {
   key: string
@@ -49,6 +49,26 @@ class CaveSurveyDb extends Dexie {
             if (!Number.isFinite(station.verticalDistance)) {
               station.verticalDistance = computeVertical(station.dip, station.slopeDistance)
             }
+          })
+      })
+    // v3：测点引入版本链（闭合洞段复测保留原读数），旧记录全部视为首版当前版本
+    this.version(SCHEMA_VERSION)
+      .stores({
+        caves: 'id, name, region, archived',
+        segments: 'id, caveId, code, type',
+        stations: 'id, segmentId, code, date',
+        sketches: 'id, segmentId, code, mergeOrder',
+        meta: 'key'
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table<Station, string>('stations')
+          .toCollection()
+          .modify((station) => {
+            if (!Number.isFinite(station.version)) station.version = 1
+            if (typeof station.isCurrent !== 'boolean') station.isCurrent = true
+            if (!station.rootId) station.rootId = station.id
+            if (typeof station.resurveyReason !== 'string') station.resurveyReason = ''
           })
       })
   }
@@ -168,7 +188,11 @@ export async function seedDemoData(): Promise<void> {
       surveyor: '陆昀',
       date: today,
       isClosurePoint: false,
-      note: '入口段，左壁有崩塌堆积'
+      note: '入口段，左壁有崩塌堆积',
+      version: 1,
+      isCurrent: true,
+      rootId: 'st_demo_001',
+      resurveyReason: ''
     },
     {
       id: 'st_demo_002',
@@ -183,7 +207,70 @@ export async function seedDemoData(): Promise<void> {
       surveyor: '陆昀',
       date: today,
       isClosurePoint: true,
-      note: '本段末站，已与 C-02 起点核对'
+      note: '本段末站，已与 C-02 起点核对',
+      version: 1,
+      isCurrent: true,
+      rootId: 'st_demo_002',
+      resurveyReason: ''
+    },
+    {
+      // C-02 已闭合洞段：P1 首版读数被复测推翻，封存为历史版本
+      id: 'st_demo_003',
+      segmentId: segmentB,
+      code: 'P1',
+      bearing: 331.6,
+      dip: -66.8,
+      slopeDistance: 12.2,
+      horizontalDistance: computeHorizontal(-66.8, 12.2),
+      verticalDistance: computeVertical(-66.8, 12.2),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: false,
+      note: '竖井首站，首测方位角与草图走向不符',
+      version: 1,
+      isCurrent: false,
+      rootId: 'st_demo_003',
+      resurveyReason: ''
+    },
+    {
+      // 复测生效后的当前版本：携带复测原因与测量日期
+      id: 'st_demo_004',
+      segmentId: segmentB,
+      code: 'P1',
+      bearing: 358.4,
+      dip: -67.5,
+      slopeDistance: 12.2,
+      horizontalDistance: computeHorizontal(-67.5, 12.2),
+      verticalDistance: computeVertical(-67.5, 12.2),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: false,
+      note: '复测确认首测罗盘受支护钢筋干扰',
+      version: 2,
+      isCurrent: true,
+      rootId: 'st_demo_003',
+      resurveyReason: '首测方位角与草图走向不符，复测确认罗盘受支护钢筋干扰'
+    },
+    {
+      id: 'st_demo_005',
+      segmentId: segmentB,
+      code: 'P2',
+      bearing: 10.2,
+      dip: -70.1,
+      slopeDistance: 8.6,
+      horizontalDistance: computeHorizontal(-70.1, 8.6),
+      verticalDistance: computeVertical(-70.1, 8.6),
+      instrumentNo: 'SOKKIA-2',
+      surveyor: '覃羽',
+      date: today,
+      isClosurePoint: true,
+      note: '井底闭合点',
+      version: 1,
+      isCurrent: true,
+      rootId: 'st_demo_005',
+      resurveyReason: ''
     }
   ])
 

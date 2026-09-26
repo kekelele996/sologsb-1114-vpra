@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { Sketch, Station } from '@/types'
+import { currentStations } from '@/types'
 import BearingInput from '@/components/common/BearingInput.vue'
 import GridCanvas from '@/components/common/GridCanvas.vue'
 import { useStore } from '@/hooks/usePersistentStore'
@@ -64,8 +65,9 @@ watch(
   { immediate: true }
 )
 
+/** 草图折线只按各测点当前生效版本投影，复测生效后自动重算 */
 const segmentStations = computed<Station[]>(() =>
-  stationState.stations
+  currentStations(stationState.stations)
     .filter((station) => station.segmentId === selectedSegmentId.value)
     .sort((a, b) => Number((a.code.match(/\d+/) ?? ['0'])[0]) - Number((b.code.match(/\d+/) ?? ['0'])[0]))
 )

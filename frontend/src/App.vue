@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStore } from '@/hooks/usePersistentStore'
+import { currentStations } from '@/types'
 import { caveStore } from '@/stores/caveStore'
 import { segmentStore } from '@/stores/segmentStore'
 import { stationStore } from '@/stores/stationStore'
@@ -26,7 +27,7 @@ const activeMenu = computed(() => menus.find((item) => route.path.startsWith(ite
 const stats = computed(() => [
   { label: '洞穴', value: caveState.caves.filter((cave) => !cave.archived).length },
   { label: '洞段', value: segmentState.segments.length },
-  { label: '测点', value: stationState.stations.length },
+  { label: '测点', value: currentStations(stationState.stations).length },
   { label: '草图', value: sketchState.sketches.length }
 ])
 
